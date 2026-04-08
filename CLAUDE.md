@@ -1,6 +1,7 @@
-# TransKribas
+# Diko
 
 YouTube video transcription web app. Self-hosted on macOS. Lithuanian UI.
+Name from Latin "dico" (I say/speak).
 
 ## Tech Stack
 - Backend: Python (uv), FastAPI, faster-whisper, yt-dlp, SQLite + FTS5

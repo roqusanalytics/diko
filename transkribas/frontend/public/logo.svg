@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512">
+  <defs>
+    <!-- Brilliant Golden Gradient for High Contrast -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d4a94e"/>
+      <stop offset="100%" stop-color="#a37f2e"/>
+    </linearGradient>
+    
+    <!-- Glassmorphism subtle drop shadow -->
+    <filter id="glass-shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <!-- Modern squircle background (like an iOS app icon) -->
+  <rect x="5" y="5" width="90" height="90" rx="25" fill="url(#bg)" />
+
+  <g filter="url(#glass-shadow)" fill="#ffffff">
+    <!-- Left Eye (Open and cute, now with a blink) -->
+    <ellipse cx="36" cy="35" rx="6" ry="6" fill-opacity="0.95">
+      <animate attributeName="ry" values="6; 6; 0.5; 6; 6" keyTimes="0; 0.9; 0.93; 0.96; 1" dur="4s" repeatCount="indefinite" />
+    </ellipse>
+
+    <!-- Right Eye (Happy Wink - now scrunches playfully) -->
+    <path fill="none" stroke="#ffffff" stroke-opacity="0.95" stroke-width="6" stroke-linecap="round">
+      <animate attributeName="d" values="M 58 35 Q 64 28 70 35; M 58 33 Q 64 22 70 33; M 58 35 Q 64 28 70 35" dur="2s" repeatCount="indefinite" />
+    </path>
+
+    <!-- Audio Waveform that naturally forms a Smile (now talks!) -->
+    <!-- Bar 1 (Leftmost) -->
+    <rect x="22" y="50" width="8" height="16" rx="4" fill-opacity="0.95">
+      <animate attributeName="y" values="50; 44; 50" dur="1.2s" begin="0s" repeatCount="indefinite" />
+      <animate attributeName="height" values="16; 28; 16" dur="1.2s" begin="0s" repeatCount="indefinite" />
+    </rect>
+    
+    <!-- Bar 2 -->
+    <rect x="34" y="54" width="8" height="24" rx="4" fill-opacity="0.95">
+      <animate attributeName="y" values="54; 48; 54" dur="1.2s" begin="0.2s" repeatCount="indefinite" />
+      <animate attributeName="height" values="24; 36; 24" dur="1.2s" begin="0.2s" repeatCount="indefinite" />
+    </rect>
+    
+    <!-- Bar 3 (Center - longest) -->
+    <rect x="46" y="56" width="8" height="30" rx="4" fill-opacity="0.95">
+      <animate attributeName="y" values="56; 48; 56" dur="1.2s" begin="0.4s" repeatCount="indefinite" />
+      <animate attributeName="height" values="30; 46; 30" dur="1.2s" begin="0.4s" repeatCount="indefinite" />
+    </rect>
+    
+    <!-- Bar 4 -->
+    <rect x="58" y="54" width="8" height="24" rx="4" fill-opacity="0.95">
+      <animate attributeName="y" values="54; 48; 54" dur="1.2s" begin="0.6s" repeatCount="indefinite" />
+      <animate attributeName="height" values="24; 36; 24" dur="1.2s" begin="0.6s" repeatCount="indefinite" />
+    </rect>
+    
+    <!-- Bar 5 (Rightmost) -->
+    <rect x="70" y="50" width="8" height="16" rx="4" fill-opacity="0.95">
+      <animate attributeName="y" values="50; 44; 50" dur="1.2s" begin="0.8s" repeatCount="indefinite" />
+      <animate attributeName="height" values="16; 28; 16" dur="1.2s" begin="0.8s" repeatCount="indefinite" />
+    </rect>
+  </g>
+  
+  <!-- Subtle little sparkles to add character and a "witty/magical" vibe -->
+  <path d="M 75 18 Q 78 22 82 20 Q 80 24 84 27 Q 80 27 78 31 Q 76 27 72 26 Q 76 24 75 18 Z" fill="#ffffff" opacity="0.9" filter="url(#glass-shadow)"/>
+  <circle cx="85" cy="15" r="1.5" fill="#ffffff" opacity="0.8" />
+</svg>

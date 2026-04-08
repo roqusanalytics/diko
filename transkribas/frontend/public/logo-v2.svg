@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="512" height="512">
+  <defs>
+    <!-- Background Gradient for the deep premium look -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b"/> <!-- Deep indigo/purple -->
+      <stop offset="100%" stop-color="#0f172a"/> <!-- Slate dark -->
+    </linearGradient>
+
+    <!-- Glass glow shapes (neon color blobs behind the glass) -->
+    <filter id="blur" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="10" />
+    </filter>
+
+    <!-- Drop shadow for the glass container and internal elements -->
+    <filter id="glass-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="6" stdDeviation="4" flood-color="#000000" flood-opacity="0.4"/>
+      <feDropShadow dx="0" dy="-1" stdDeviation="1" flood-color="#ffffff" flood-opacity="0.2"/>
+    </filter>
+
+    <!-- Mask to punch out the pen breather hole and slit -->
+    <mask id="nib-mask">
+      <rect x="0" y="0" width="100" height="100" fill="white" />
+      <circle cx="50" cy="74" r="2.5" fill="black" />
+      <line x1="50" y1="74" x2="50" y2="92" stroke="black" stroke-width="1.5" stroke-linecap="round" />
+    </mask>
+
+    <!-- Frosted glass material gradient -->
+    <linearGradient id="glass-fill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Solid Modern App Canvas -->
+  <rect x="0" y="0" width="100" height="100" rx="22" fill="url(#bg)" />
+
+  <!-- Colorful blobs generating the transparent neon aesthetic -->
+  <circle cx="20" cy="20" r="30" fill="#8b5cf6" filter="url(#blur)" opacity="0.6" />
+  <circle cx="80" cy="30" r="35" fill="#f43f5e" filter="url(#blur)" opacity="0.5" />
+  <circle cx="50" cy="80" r="40" fill="#06b6d4" filter="url(#blur)" opacity="0.6" />
+
+  <!-- Main "Speech Bubble + Fountain Pen Nib" Shape -->
+  <path d="
+    M 30 18
+    H 70
+    A 15 15 0 0 1 85 33
+    V 45
+    A 15 15 0 0 1 70 60
+    H 62
+    L 65 70
+    Q 65 82 50 90
+    Q 35 82 35 70
+    L 38 60
+    H 30
+    A 15 15 0 0 1 15 45
+    V 33
+    A 15 15 0 0 1 30 18
+    Z" 
+    fill="url(#glass-fill)" 
+    stroke="#ffffff" stroke-width="2" stroke-opacity="0.8"
+    filter="url(#glass-shadow)"
+    mask="url(#nib-mask)"
+  />
+
+  <!-- The "Smaikstu" Cuty Face inside the bubble made of Audio Waveform -->
+  <g fill="#ffffff" filter="url(#glass-shadow)">
+    <!-- Left Eye -->
+    <circle cx="41" cy="26" r="2.5" />
+
+    <!-- Right Eye (Playful Wink) -->
+    <path d="M 56 27 Q 59 22 62 27" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+
+    <!-- Cute Smiling Audio Bars -->
+    <!-- Bar 1 -->
+    <rect x="30" y="34" width="4" height="8" rx="2" />
+    <!-- Bar 2 -->
+    <rect x="39" y="34" width="4" height="14" rx="2" />
+    <!-- Bar 3 (Center) -->
+    <rect x="48" y="34" width="4" height="18" rx="2" />
+    <!-- Bar 4 -->
+    <rect x="57" y="34" width="4" height="14" rx="2" />
+    <!-- Bar 5 -->
+    <rect x="66" y="34" width="4" height="8" rx="2" />
+  </g>
+
+  <!-- Magical sparkles for extra flavor -->
+  <path d="M 82 15 Q 84 19 88 21 Q 84 23 82 27 Q 80 23 76 21 Q 80 19 82 15 Z" fill="#ffffff" filter="url(#glass-shadow)" />
+  <path d="M 22 25 Q 23 27 25 28 Q 23 29 22 31 Q 21 29 19 28 Q 21 27 22 25 Z" fill="#ffffff" opacity="0.8" filter="url(#glass-shadow)" />
+
+</svg>
