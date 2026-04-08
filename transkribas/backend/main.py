@@ -12,6 +12,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
@@ -1281,6 +1282,16 @@ async def cancel_media_download(job_id: str):
         return {"status": "already_finished"}
     job["cancelled"] = True
     return {"status": "cancelling"}
+
+
+# --- Static frontend (production) ---
+
+_static_dir = Path(__file__).parent / "static"
+if _static_dir.is_dir():
+    app.mount(
+        "/", StaticFiles(directory=str(_static_dir), html=True),
+        name="static",
+    )
 
 
 # --- Helpers ---

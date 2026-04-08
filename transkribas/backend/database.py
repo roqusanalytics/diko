@@ -1,12 +1,16 @@
 """SQLite database with FTS5 for transcript storage, search, and settings."""
 
 import json
+import os
 import sqlite3
 from pathlib import Path
 
 from models import Settings, TranscriptRecord, TranscriptSegment
 
-DB_PATH = Path.home() / "Documents" / "5. AI projektai" / "YT_transcribe" / "yt_transcribe"
+DB_PATH = Path(os.environ.get(
+    "DB_PATH",
+    Path.home() / "Documents" / "5. AI projektai" / "YT_transcribe" / "yt_transcribe",
+))
 
 
 def _get_conn() -> sqlite3.Connection:
