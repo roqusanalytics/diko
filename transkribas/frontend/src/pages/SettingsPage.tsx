@@ -31,7 +31,7 @@ export default function SettingsPage() {
   const [showSearch, setShowSearch] = useState(false)
   const [searching, setSearching] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   // Load settings + saved models
   useEffect(() => {

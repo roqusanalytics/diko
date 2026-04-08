@@ -143,9 +143,8 @@ export default function TranscribePage({ onTranscribed, onTitleChange }: Props) 
   const [showDownloadModal, setShowDownloadModal] = useState(false)
   const playerRef = useRef<HTMLIFrameElement>(null)
   const etaRef = useRef<{ time: number; progress: number }[]>([])
-  const transcriptLinesRef = useRef<HTMLDivElement>(null)
-
-  function connectToJob(jobId: string, savedUrl?: string) {
+  function connectToJob(jobId: string, _savedUrl?: string) {
+    void _savedUrl
     setLoading(true)
     setError('')
     setProgress(0)
@@ -344,11 +343,12 @@ export default function TranscribePage({ onTranscribed, onTitleChange }: Props) 
       }
     })
 
-    if (current && current.parts.length > 0) {
+    const last = current as { start: number; parts: string[]; indices: number[] } | null
+    if (last && last.parts.length > 0) {
       paragraphs.push({
-        start: current.start,
-        text: current.parts.join(' '),
-        segmentIndices: current.indices,
+        start: last.start,
+        text: last.parts.join(' '),
+        segmentIndices: last.indices,
       })
     }
 

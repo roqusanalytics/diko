@@ -226,14 +226,6 @@ export default function LibraryPage() {
     setCollections(data.collections || [])
   }
 
-  const deleteCollectionHandler = async (id: number) => {
-    await fetch(`${API}/api/collections/${id}`, { method: 'DELETE' })
-    if (collectionFilter === id) setCollectionFilter(null)
-    const res = await fetch(`${API}/api/collections`)
-    const data = await res.json()
-    setCollections(data.collections || [])
-  }
-
   // Filter + sort
   const displayItems = useMemo(() => {
     let filtered = items

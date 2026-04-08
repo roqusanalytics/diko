@@ -1,0 +1,25 @@
+- generic [ref=e1]:
+  - dialog "Slapukų sutikimo reklamjuostė" [ref=e2]:
+    - button "Uždaryti šį dialogo langą" [active] [ref=e3] [cursor=pointer]:
+      - img "Uždaryti šį dialogo langą" [ref=e4]
+    - generic [ref=e5]:
+      - generic [ref=e6]: Ši svetainė naudoja tokias technologijas kaip slapukai, kad įgalintų esmines svetainės funkcijas, taip pat analizė, individualizavimas ir tikslinė reklama. Galite bet kada pakeisti nustatymus arba priimti numatytuosius nustatymus. Galite uždaryti šią reklamjuostę, kad toliau naudotumėte tik būtiniausius slapukus
+      - link "Privatumo politika" [ref=e7] [cursor=pointer]:
+        - /url: https://railway.com/legal/privacy
+    - generic [ref=e8]:
+      - button "Tvarkyti nuostatas" [ref=e9] [cursor=pointer]
+      - button "Priimti visus" [ref=e10] [cursor=pointer]
+      - button "Atmesti neesminius" [ref=e11] [cursor=pointer]
+  - generic [ref=e14]:
+    - banner [ref=e16]:
+      - generic [ref=e17]:
+        - link "Railway Logo" [ref=e18] [cursor=pointer]:
+          - /url: /
+          - img "Railway Logo" [ref=e20]
+        - generic [ref=e23]:
+          - button "New project" [ref=e26] [cursor=pointer]:
+            - img [ref=e28]
+            - generic [ref=e30]: New project
+          - paragraph [ref=e33]: GitHub
+      - navigation [ref=e34]
+    - region [ref=e43]
