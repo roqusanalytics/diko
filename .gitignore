@@ -9,3 +9,4 @@ transkribas/backend/data/
 transkribas/backend/tmp/
 .pytest_cache/
 .gstack/
+.playwright-mcp/

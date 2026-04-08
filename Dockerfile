@@ -12,17 +12,20 @@ RUN bun run build
 FROM python:3.13-slim
 WORKDIR /app
 
-# System deps
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# System deps — split into separate layers to reduce peak memory
+RUN apt-get update && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 
-# Python deps
-RUN pip install --no-cache-dir uv
-COPY transkribas/backend/pyproject.toml transkribas/backend/uv.lock ./
-RUN uv sync --no-dev --frozen 2>/dev/null || uv pip install --system \
-    fastapi uvicorn faster-whisper httpx sse-starlette yt-dlp
+# Python deps — install without faster-whisper first (lighter), then whisper
+RUN pip install --no-cache-dir \
+    fastapi==0.135.3 \
+    uvicorn[standard]==0.42.0 \
+    httpx==0.28.1 \
+    sse-starlette==3.3.4 \
+    yt-dlp==2026.3.17 \
+    pydantic
+
+RUN pip install --no-cache-dir faster-whisper==1.2.1
 
 # Backend source
 COPY transkribas/backend/ .
@@ -40,5 +43,4 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-# Serve frontend from FastAPI + run backend
 CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
