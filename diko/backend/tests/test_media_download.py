@@ -133,7 +133,7 @@ class TestFindOutputFile:
 
 class TestCleanupMediaDir:
     def test_cleans_media_dir(self, tmp_path):
-        d = tmp_path / "transkribas_media_abc"
+        d = tmp_path / "diko_media_abc"
         d.mkdir()
         (d / "file.mp3").touch()
         downloader.cleanup_media_dir(str(d))

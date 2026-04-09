@@ -2,7 +2,7 @@
 # Diko auto-start script for macOS Launch Agent
 # Starts backend (FastAPI) and frontend (Vite) servers
 
-DIKO_DIR="$HOME/Claude darbbinis/transkribas"
+DIKO_DIR="$HOME/Claude darbbinis/diko"
 LOG_DIR="$HOME/.diko/logs"
 mkdir -p "$LOG_DIR"
 

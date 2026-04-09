@@ -154,7 +154,7 @@ def _worker_download(
     with httpx.Client(timeout=timeout) as client:
         with client.stream("POST", url, json=payload, headers=_worker_headers()) as res:
             res.raise_for_status()
-            meta = _decode_meta_header(res.headers.get("X-Transkribas-Meta"))
+            meta = _decode_meta_header(res.headers.get("X-Diko-Meta"))
             ext = meta.get("ext", fallback_ext) or fallback_ext
             video_id = meta.get("video_id", "remote")
             out_path = tmp_dir / f"{video_id}.{ext}"
@@ -278,7 +278,7 @@ def get_captions_local(
     source is 'youtube_manual' or 'youtube_auto'.
     """
     try:
-        tmp_dir = Path(tempfile.mkdtemp(prefix="transkribas_sub_"))
+        tmp_dir = Path(tempfile.mkdtemp(prefix="diko_sub_"))
         langs = [language, "en"] if language and language != "en" else ["en"]
 
         ydl_opts = {
@@ -413,7 +413,7 @@ def download_audio(url: str) -> DownloadResult:
         audio_path, meta = _worker_download(
             "/internal/youtube/audio",
             {"url": url},
-            tmp_prefix="transkribas_",
+            tmp_prefix="diko_",
             fallback_ext="m4a",
         )
         return DownloadResult(
@@ -431,7 +431,7 @@ def download_audio(url: str) -> DownloadResult:
 
 def download_audio_local(url: str) -> DownloadResult:
     """Download audio from YouTube URL as m4a. Returns DownloadResult with file path."""
-    tmp_dir = Path(tempfile.mkdtemp(prefix="transkribas_"))
+    tmp_dir = Path(tempfile.mkdtemp(prefix="diko_"))
 
     ydl_opts = {
         "format": "bestaudio[ext=m4a]/bestaudio",
@@ -480,7 +480,7 @@ def cleanup_audio(audio_path: str) -> None:
     path = Path(audio_path)
     try:
         path.unlink(missing_ok=True)
-        if path.parent.name.startswith("transkribas_"):
+        if path.parent.name.startswith("diko_"):
             path.parent.rmdir()
     except OSError:
         pass
@@ -556,7 +556,7 @@ def download_media(
                 "start_time": start_time,
                 "end_time": end_time,
             },
-            tmp_prefix="transkribas_media_",
+            tmp_prefix="diko_media_",
             fallback_ext=fmt,
             timeout=1800.0,
         )
@@ -605,7 +605,7 @@ def download_media_local(
     if fmt not in AUDIO_FORMATS | VIDEO_FORMATS:
         raise ValueError(f"Unsupported format: {fmt}")
 
-    tmp_dir = Path(tempfile.mkdtemp(prefix="transkribas_media_"))
+    tmp_dir = Path(tempfile.mkdtemp(prefix="diko_media_"))
     format_str, postprocessors = _build_format_string(fmt, quality)
 
     def progress_hook(d: dict) -> None:
@@ -713,7 +713,7 @@ def _trim_media(
 def cleanup_media_dir(dir_path: str) -> None:
     """Remove a media temp directory and all its contents."""
     path = Path(dir_path)
-    if not path.name.startswith("transkribas_media_"):
+    if not path.name.startswith("diko_media_"):
         return
     try:
         for f in path.iterdir():

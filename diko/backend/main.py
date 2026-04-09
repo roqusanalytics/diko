@@ -1,4 +1,4 @@
-"""TransKribas FastAPI backend. YouTube transcription with SSE progress streaming."""
+"""Diko FastAPI backend. YouTube transcription with SSE progress streaming."""
 
 import asyncio
 import base64
@@ -342,9 +342,9 @@ async def _media_janitor() -> None:
 
 
 def _startup_cleanup() -> None:
-    """Remove orphaned transkribas_media_ temp dirs on startup."""
+    """Remove orphaned diko_media_ temp dirs on startup."""
     tmp = Path(tempfile.gettempdir())
-    for d in tmp.glob("transkribas_media_*"):
+    for d in tmp.glob("diko_media_*"):
         if d.is_dir():
             downloader.cleanup_media_dir(str(d))
 
@@ -361,7 +361,7 @@ async def lifespan(app: FastAPI):
     janitor.cancel()
 
 
-app = FastAPI(title="TransKribas", lifespan=lifespan)
+app = FastAPI(title="Diko", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -467,7 +467,7 @@ async def worker_download_audio(req: WorkerUrlRequest, request: Request):
         media_type="application/octet-stream",
         filename=audio_path.name,
         headers={
-            "X-Transkribas-Meta": _meta_header(
+            "X-Diko-Meta": _meta_header(
                 {
                     "video_id": result.video_id,
                     "title": result.title,
@@ -504,7 +504,7 @@ async def worker_download_media(req: WorkerMediaRequest, request: Request):
         media_type="application/octet-stream",
         filename=file_path.name,
         headers={
-            "X-Transkribas-Meta": _meta_header(
+            "X-Diko-Meta": _meta_header(
                 {
                     "video_id": result.video_id,
                     "title": result.title,

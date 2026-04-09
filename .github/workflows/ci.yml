@@ -21,16 +21,16 @@ jobs:
         uses: astral-sh/setup-uv@v4
 
       - name: Install backend dependencies
-        working-directory: transkribas/backend
+        working-directory: diko/backend
         run: uv sync
 
       - name: Run backend tests
-        working-directory: transkribas/backend
+        working-directory: diko/backend
         run: uv run pytest tests/ -v
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
 
       - name: Install frontend dependencies
-        working-directory: transkribas/frontend
+        working-directory: diko/frontend
         run: bun install --frozen-lockfile

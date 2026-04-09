@@ -47,7 +47,7 @@ function formatCount(n: number): string {
   return String(n)
 }
 
-const JOB_STORAGE_KEY = 'transkribas_active_job'
+const JOB_STORAGE_KEY = 'diko_active_job'
 
 function formatEta(seconds: number): string {
   if (seconds < 60) return 'mažiau nei minutė'

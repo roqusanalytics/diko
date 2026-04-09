@@ -3,9 +3,9 @@
 # Stage 1: Build frontend
 FROM oven/bun:1 AS frontend-build
 WORKDIR /app/frontend
-COPY transkribas/frontend/package.json transkribas/frontend/bun.lock ./
+COPY diko/frontend/package.json diko/frontend/bun.lock ./
 RUN bun install --frozen-lockfile
-COPY transkribas/frontend/ .
+COPY diko/frontend/ .
 RUN bun run build
 
 # Stage 2: Production
@@ -32,7 +32,7 @@ RUN pip install --no-cache-dir \
 RUN pip install --no-cache-dir faster-whisper==1.2.1
 
 # Backend source
-COPY transkribas/backend/ .
+COPY diko/backend/ .
 
 # Frontend static files (from build stage)
 COPY --from=frontend-build /app/frontend/dist /app/static

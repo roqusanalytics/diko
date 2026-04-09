@@ -55,6 +55,6 @@ def to_pdf_html(title: str, segments: list[TranscriptSegment], summary: str = ""
 <h1>{title}</h1>
 {summary_section}
 {lines_html}
-<div class="footer">Sugeneruota su TransKribas</div>
+<div class="footer">Sugeneruota su Diko</div>
 </body>
 </html>"""
