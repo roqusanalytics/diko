@@ -1,8 +1,10 @@
 """TransKribas FastAPI backend. YouTube transcription with SSE progress streaming."""
 
 import asyncio
+import base64
 import json
 import logging
+import os
 import tempfile
 import time
 import uuid
@@ -11,19 +13,41 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
+from starlette.background import BackgroundTask
 
 import database as db
 import downloader
 import exporter
 import summarizer
 import transcriber
+import youtube_api
 from models import JobStatus, TranscriptRecord
 
 logger = logging.getLogger(__name__)
+
+
+def _worker_token() -> str:
+    return os.environ.get("YTDLP_WORKER_TOKEN", "")
+
+
+def _require_worker_auth(request: Request) -> None:
+    """Protect internal residential-worker endpoints with a shared token."""
+    expected = _worker_token()
+    if not expected:
+        raise HTTPException(503, "YTDLP worker token not configured")
+
+    auth = request.headers.get("Authorization", "")
+    if auth != f"Bearer {expected}":
+        raise HTTPException(401, "Unauthorized worker request")
+
+
+def _meta_header(data: dict) -> str:
+    raw = json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii")
 
 # --- Job tracking ---
 
@@ -347,6 +371,23 @@ class TranscribeRequest(BaseModel):
     force_whisper: bool = False
 
 
+class WorkerUrlRequest(BaseModel):
+    url: str
+
+
+class WorkerCaptionRequest(BaseModel):
+    url: str
+    language: str = "en"
+
+
+class WorkerMediaRequest(BaseModel):
+    url: str
+    format: str = "mp3"
+    quality: str = "320"
+    start_time: float | None = None
+    end_time: float | None = None
+
+
 class SettingsRequest(BaseModel):
     openrouter_api_key: str = ""
     openrouter_model: str = "anthropic/claude-sonnet-4"
@@ -363,6 +404,116 @@ class SaveModelRequest(BaseModel):
 
 # --- Endpoints ---
 
+@app.post("/internal/youtube/extract-video-id")
+async def worker_extract_video_id(req: WorkerUrlRequest, request: Request):
+    """Internal endpoint for residential worker video-id extraction."""
+    _require_worker_auth(request)
+    try:
+        video_id = await asyncio.to_thread(downloader.extract_video_id_local, req.url.strip())
+        return {"video_id": video_id}
+    except Exception as e:
+        raise HTTPException(400, f"Invalid YouTube URL: {e}")
+
+
+@app.post("/internal/youtube/playlist")
+async def worker_extract_playlist(req: WorkerUrlRequest, request: Request):
+    """Internal endpoint for residential worker playlist extraction."""
+    _require_worker_auth(request)
+    videos = await asyncio.to_thread(downloader.extract_playlist_urls_local, req.url.strip())
+    return {"videos": videos}
+
+
+@app.post("/internal/youtube/captions")
+async def worker_get_captions(req: WorkerCaptionRequest, request: Request):
+    """Internal endpoint for residential worker caption extraction."""
+    _require_worker_auth(request)
+    result = await asyncio.to_thread(downloader.get_captions_local, req.url.strip(), req.language)
+    if not result:
+        return {"ok": False}
+
+    return {
+        "ok": True,
+        "video_id": result["video_id"],
+        "title": result["title"],
+        "duration": result["duration"],
+        "channel_name": result.get("channel_name", ""),
+        "view_count": result.get("view_count", 0),
+        "like_count": result.get("like_count", 0),
+        "source": result["source"],
+        "segments": [
+            {"start": s.start, "end": s.end, "text": s.text}
+            for s in result["segments"]
+        ],
+    }
+
+
+@app.post("/internal/youtube/audio")
+async def worker_download_audio(req: WorkerUrlRequest, request: Request):
+    """Internal endpoint that streams audio bytes from the residential worker."""
+    _require_worker_auth(request)
+    result = await asyncio.to_thread(downloader.download_audio_local, req.url.strip())
+    audio_path = Path(result.audio_path)
+
+    return FileResponse(
+        path=audio_path,
+        media_type="application/octet-stream",
+        filename=audio_path.name,
+        headers={
+            "X-Transkribas-Meta": _meta_header(
+                {
+                    "video_id": result.video_id,
+                    "title": result.title,
+                    "duration": result.duration,
+                    "thumbnail_url": result.thumbnail_url,
+                    "channel_name": result.channel_name,
+                    "view_count": result.view_count,
+                    "like_count": result.like_count,
+                    "ext": audio_path.suffix.lstrip("."),
+                }
+            ),
+        },
+        background=BackgroundTask(downloader.cleanup_audio, result.audio_path),
+    )
+
+
+@app.post("/internal/youtube/media")
+async def worker_download_media(req: WorkerMediaRequest, request: Request):
+    """Internal endpoint that streams media files from the residential worker."""
+    _require_worker_auth(request)
+    result = await asyncio.to_thread(
+        downloader.download_media_local,
+        req.url.strip(),
+        req.format,
+        req.quality,
+        req.start_time,
+        req.end_time,
+        None,
+    )
+    file_path = Path(result.file_path)
+
+    return FileResponse(
+        path=file_path,
+        media_type="application/octet-stream",
+        filename=file_path.name,
+        headers={
+            "X-Transkribas-Meta": _meta_header(
+                {
+                    "video_id": result.video_id,
+                    "title": result.title,
+                    "duration": result.duration,
+                    "format": result.format,
+                    "file_size": result.file_size,
+                    "ext": file_path.suffix.lstrip("."),
+                }
+            ),
+        },
+        background=BackgroundTask(
+            downloader.cleanup_media_dir,
+            str(file_path.parent),
+        ),
+    )
+
+
 @app.post("/api/transcribe")
 async def transcribe_video(req: TranscribeRequest):
     """Submit a YouTube URL for transcription. Checks YouTube captions first."""
@@ -370,13 +521,13 @@ async def transcribe_video(req: TranscribeRequest):
     if not url:
         raise HTTPException(400, "URL is required")
 
-    # Try to extract video ID to check cache
+    # Extract video ID (regex first, no network call)
     try:
         video_id = await asyncio.to_thread(downloader.extract_video_id, url)
     except Exception:
         raise HTTPException(400, "Invalid YouTube URL")
 
-    # Check cache (skip if force_whisper to allow re-transcription)
+    # Check cache
     if not req.force_whisper:
         cached = db.get_transcript(video_id)
         if cached:
@@ -387,11 +538,13 @@ async def transcribe_video(req: TranscribeRequest):
                 "transcript": _serialize_record(cached),
             }
 
-    # Try YouTube captions first (unless force_whisper)
+    # Try YouTube captions via yt-dlp (works with cookies or localhost)
     if not req.force_whisper:
         settings = db.get_settings()
         lang = settings.default_language or "en"
-        caption_result = await asyncio.to_thread(downloader.get_captions, url, lang)
+        caption_result = await asyncio.to_thread(
+            downloader.get_captions, url, lang
+        )
 
         if caption_result:
             record = TranscriptRecord(
@@ -408,10 +561,11 @@ async def transcribe_video(req: TranscribeRequest):
                 like_count=caption_result["like_count"],
             )
             db.save_transcript(record)
-
-            # Try to generate summary in the background
-            asyncio.create_task(_generate_summary_async(record.video_id, record.segments, settings))
-
+            asyncio.create_task(
+                _generate_summary_async(
+                    record.video_id, record.segments, settings
+                )
+            )
             return {
                 "job_id": str(uuid.uuid4()),
                 "video_id": record.video_id,
@@ -419,7 +573,40 @@ async def transcribe_video(req: TranscribeRequest):
                 "transcript": _serialize_record(record),
             }
 
-    # No captions or force_whisper: queue for Whisper
+    # FALLBACK: YouTube Data API for metadata (works from any IP)
+    # Returns metadata even when yt-dlp is blocked by YouTube
+    if not req.force_whisper:
+        meta = await asyncio.to_thread(
+            youtube_api.get_video_metadata, video_id
+        )
+        if meta:
+            logger.info(
+                f"yt-dlp failed, using YouTube API metadata for {video_id}"
+            )
+            # Save metadata-only record (no segments yet)
+            record = TranscriptRecord(
+                video_id=meta.video_id,
+                title=meta.title,
+                url=url,
+                language="en",
+                duration=meta.duration,
+                segments=[],
+                source="youtube_api_metadata",
+                summary_status="no_transcript",
+                channel_name=meta.channel_name,
+                view_count=meta.view_count,
+                like_count=meta.like_count,
+            )
+            db.save_transcript(record)
+            return {
+                "job_id": str(uuid.uuid4()),
+                "video_id": meta.video_id,
+                "status": "complete",
+                "transcript": _serialize_record(record),
+                "notice": "Subtitrai nepasiekiami serveryje. Naudokite localhost versiją pilnam transkribavimui.",
+            }
+
+    # No captions, no API fallback, or force_whisper: queue for Whisper
     job_id = str(uuid.uuid4())
     jobs[job_id] = {
         "status": JobStatus.QUEUED,
