@@ -573,7 +573,54 @@ async def transcribe_video(req: TranscribeRequest):
                 "transcript": _serialize_record(record),
             }
 
-    # FALLBACK: YouTube Data API for metadata (works from any IP)
+    # FALLBACK 1: Residential transcript worker via Tailscale
+    # Fetches real transcript text from a home PC with residential IP
+    if not req.force_whisper:
+        worker_segments = await asyncio.to_thread(
+            downloader.fetch_transcript_from_worker, video_id, lang
+        )
+        if worker_segments:
+            # Get metadata from YouTube API for title/duration/etc
+            meta = await asyncio.to_thread(
+                youtube_api.get_video_metadata, video_id
+            )
+            title = meta.title if meta else "Unknown"
+            duration = meta.duration if meta else 0
+            channel_name = meta.channel_name if meta else ""
+            view_count = meta.view_count if meta else 0
+            like_count = meta.like_count if meta else 0
+
+            record = TranscriptRecord(
+                video_id=video_id,
+                title=title,
+                url=url,
+                language=lang,
+                duration=duration,
+                segments=worker_segments,
+                source="residential_worker",
+                summary_status="pending",
+                channel_name=channel_name,
+                view_count=view_count,
+                like_count=like_count,
+            )
+            db.save_transcript(record)
+            asyncio.create_task(
+                _generate_summary_async(
+                    record.video_id, record.segments, settings
+                )
+            )
+            logger.info(
+                f"Residential worker transcript for {video_id}: "
+                f"{len(worker_segments)} segments"
+            )
+            return {
+                "job_id": str(uuid.uuid4()),
+                "video_id": video_id,
+                "status": "complete",
+                "transcript": _serialize_record(record),
+            }
+
+    # FALLBACK 2: YouTube Data API for metadata (works from any IP)
     # Returns metadata even when yt-dlp is blocked by YouTube
     if not req.force_whisper:
         meta = await asyncio.to_thread(

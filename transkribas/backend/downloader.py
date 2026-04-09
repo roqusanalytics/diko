@@ -48,6 +48,66 @@ def _use_worker() -> bool:
     return bool(_worker_base_url())
 
 
+def _transcript_worker_url() -> str:
+    """Residential transcript worker URL (Flask on Tailscale Funnel)."""
+    return os.environ.get("TRANSCRIPT_WORKER_URL", "").rstrip("/")
+
+
+def _transcript_worker_token() -> str:
+    return os.environ.get("TRANSCRIPT_WORKER_TOKEN", "")
+
+
+def fetch_transcript_from_worker(
+    video_id: str, language: str = "en"
+) -> list[TranscriptSegment] | None:
+    """Fetch transcript text from the residential worker.
+
+    The worker runs youtube-transcript-api from a residential IP,
+    bypassing YouTube's datacenter bot detection.
+    Returns list of TranscriptSegment or None if unavailable.
+    """
+    base = _transcript_worker_url()
+    if not base:
+        return None
+
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    token = _transcript_worker_token()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    try:
+        with httpx.Client(timeout=30) as client:
+            r = client.post(
+                f"{base}/transcript",
+                json={"video_id": video_id, "language": language},
+                headers=headers,
+            )
+            r.raise_for_status()
+            data = r.json()
+
+        if not data.get("ok"):
+            logger.warning(f"Transcript worker error: {data.get('error', 'unknown')}")
+            return None
+
+        segments = []
+        for s in data.get("segments", []):
+            segments.append(TranscriptSegment(
+                start=float(s["start"]),
+                end=float(s["start"]) + float(s.get("duration", 0)),
+                text=s.get("text", ""),
+            ))
+
+        if not segments:
+            return None
+
+        logger.info(f"Residential worker returned {len(segments)} segments for {video_id}")
+        return segments
+
+    except Exception as e:
+        logger.warning(f"Transcript worker unreachable: {e}")
+        return None
+
+
 def _worker_headers() -> dict[str, str]:
     headers = {"Content-Type": "application/json"}
     token = _worker_token()
