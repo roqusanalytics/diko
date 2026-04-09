@@ -287,17 +287,18 @@ def _clear_db_key(key: str) -> None:
 
 
 def save_settings(settings: Settings) -> None:
-    """Write settings. API key goes to Keychain, rest to DB."""
-    # Store API key in Keychain (not DB)
+    """Write settings. API key goes to Keychain on macOS, DB elsewhere."""
+    # Try Keychain first; if it fails, fall back to DB
+    api_key_in_keychain = False
     if settings.openrouter_api_key:
-        keychain.set_secret(
+        api_key_in_keychain = keychain.set_secret(
             "openrouter_api_key",
             settings.openrouter_api_key,
         )
 
     conn = _get_conn()
     for key, value in {
-        "openrouter_api_key": "",  # never store in DB
+        "openrouter_api_key": "" if api_key_in_keychain else settings.openrouter_api_key,
         "openrouter_model": settings.openrouter_model,
         "whisper_model": settings.whisper_model,
         "default_language": settings.default_language,
