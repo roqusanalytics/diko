@@ -12,9 +12,13 @@ RUN bun run build
 FROM python:3.13-slim
 WORKDIR /app
 
-# System deps — split into separate layers to reduce peak memory
-RUN apt-get update && rm -rf /var/lib/apt/lists/*
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg unzip curl && rm -rf /var/lib/apt/lists/*
+
+# Install deno (required by yt-dlp for YouTube JS challenges)
+RUN curl -fsSL https://deno.land/install.sh | sh
+ENV DENO_DIR=/root/.deno
+ENV PATH="/root/.deno/bin:${PATH}"
 
 # Python deps — install without faster-whisper first (lighter), then whisper
 RUN pip install --no-cache-dir \
