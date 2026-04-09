@@ -1,11 +1,15 @@
 """SQLite database with FTS5 for transcript storage, search, and settings."""
 
 import json
+import logging
 import os
 import sqlite3
 from pathlib import Path
 
+import keychain
 from models import Settings, TranscriptRecord, TranscriptSegment
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = Path(os.environ.get(
     "DB_PATH",
@@ -243,14 +247,23 @@ def update_translation(video_id: str, translated_text: str) -> None:
 # --- Settings ---
 
 def get_settings() -> Settings:
-    """Read all settings from the database."""
+    """Read settings. API key from Keychain (macOS) or DB fallback."""
     conn = _get_conn()
     rows = conn.execute("SELECT key, value FROM settings").fetchall()
     conn.close()
 
     data = {row["key"]: row["value"] for row in rows}
+
+    # API key: try Keychain first, fall back to DB
+    api_key = keychain.get_secret("openrouter_api_key") or ""
+    if not api_key:
+        api_key = data.get("openrouter_api_key", "")
+        # Auto-migrate plain-text key to Keychain
+        if api_key and keychain.migrate_from_db(api_key):
+            _clear_db_key("openrouter_api_key")
+
     return Settings(
-        openrouter_api_key=data.get("openrouter_api_key", ""),
+        openrouter_api_key=api_key,
         openrouter_model=data.get(
             "openrouter_model", "anthropic/claude-sonnet-4"
         ),
@@ -261,11 +274,30 @@ def get_settings() -> Settings:
     )
 
 
+def _clear_db_key(key: str) -> None:
+    """Remove a sensitive key from DB after Keychain migration."""
+    conn = _get_conn()
+    conn.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        (key, ""),
+    )
+    conn.commit()
+    conn.close()
+    logger.info(f"Cleared '{key}' from DB (now in Keychain)")
+
+
 def save_settings(settings: Settings) -> None:
-    """Write all settings to the database."""
+    """Write settings. API key goes to Keychain, rest to DB."""
+    # Store API key in Keychain (not DB)
+    if settings.openrouter_api_key:
+        keychain.set_secret(
+            "openrouter_api_key",
+            settings.openrouter_api_key,
+        )
+
     conn = _get_conn()
     for key, value in {
-        "openrouter_api_key": settings.openrouter_api_key,
+        "openrouter_api_key": "",  # never store in DB
         "openrouter_model": settings.openrouter_model,
         "whisper_model": settings.whisper_model,
         "default_language": settings.default_language,

@@ -16,6 +16,17 @@ from models import Settings, TranscriptRecord, TranscriptSegment
 
 
 @pytest.fixture(autouse=True)
+def mock_keychain():
+    """Mock Keychain in tests — in-memory store."""
+    import keychain
+    _store = {}
+    with patch.object(keychain, "get_secret", side_effect=lambda k: _store.get(k)), \
+         patch.object(keychain, "set_secret", side_effect=lambda k, v: _store.update({k: v}) or True), \
+         patch.object(keychain, "migrate_from_db", return_value=False):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def temp_db(tmp_path):
     """Use a temporary database for each test."""
     test_db = tmp_path / "test.db"
