@@ -254,8 +254,10 @@ def get_settings() -> Settings:
 
     data = {row["key"]: row["value"] for row in rows}
 
-    # API key: try Keychain first, fall back to DB
-    api_key = keychain.get_secret("openrouter_api_key") or ""
+    # API key priority: env var > Keychain > DB
+    api_key = os.environ.get("OPENROUTER_API_KEY", "")
+    if not api_key:
+        api_key = keychain.get_secret("openrouter_api_key") or ""
     if not api_key:
         api_key = data.get("openrouter_api_key", "")
         # Auto-migrate plain-text key to Keychain
