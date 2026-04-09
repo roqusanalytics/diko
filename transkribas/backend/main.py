@@ -1192,36 +1192,47 @@ async def translate_transcript(video_id: str):
         chunks = [full_text]
 
     translated_parts = []
-    for chunk in chunks:
-        import httpx
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.openrouter_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": settings.openrouter_model,
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": (
-                                "Esi profesionalus vertėjas. Išversk šį tekstą į lietuvių kalbą. "
-                                "Išlaikyk originalią prasmę ir toną. Formatuok tekstą tvarkingais "
-                                "sakiniais ir pastraipomis, kad būtų lengva skaityti kaip knygą. "
-                                "Naudok taisyklingą lietuvių kalbos gramatiką ir skyrybą. "
-                                "Grąžink tik vertimą, be jokių komentarų ar paaiškinimų."
-                            ),
-                        },
-                        {"role": "user", "content": chunk},
-                    ],
-                    "max_tokens": 4096,
-                },
-            )
-            response.raise_for_status()
-            data = response.json()
-            translated_parts.append(data["choices"][0]["message"]["content"])
+    import httpx
+    for i, chunk in enumerate(chunks):
+        try:
+            async with httpx.AsyncClient(timeout=180.0) as client:
+                response = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {settings.openrouter_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": settings.openrouter_model,
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": (
+                                    "Esi profesionalus vertėjas. Išversk šį tekstą į lietuvių kalbą. "
+                                    "Išlaikyk originalią prasmę ir toną. Formatuok tekstą tvarkingais "
+                                    "sakiniais ir pastraipomis, kad būtų lengva skaityti kaip knygą. "
+                                    "Naudok taisyklingą lietuvių kalbos gramatiką ir skyrybą. "
+                                    "Grąžink tik vertimą, be jokių komentarų ar paaiškinimų."
+                                ),
+                            },
+                            {"role": "user", "content": chunk},
+                        ],
+                        "max_tokens": 16384,
+                    },
+                )
+                if response.status_code != 200:
+                    error_text = response.text[:200]
+                    logger.error(f"OpenRouter translate error {response.status_code}: {error_text}")
+                    raise HTTPException(502, f"Vertimo klaida: OpenRouter grąžino {response.status_code}")
+                data = response.json()
+                translated_parts.append(data["choices"][0]["message"]["content"])
+        except httpx.TimeoutException:
+            raise HTTPException(504, "Vertimo užklausa per ilga. Bandykite dar kartą.")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Translation chunk {i} failed: {e}")
+            raise HTTPException(502, f"Vertimo klaida: {e}")
 
     translated = "\n\n".join(translated_parts)
     db.update_translation(video_id, translated)
