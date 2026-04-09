@@ -14,6 +14,16 @@ from models import DownloadResult, MediaDownloadResult, TranscriptSegment
 
 logger = logging.getLogger(__name__)
 
+# YouTube cookies for cloud deployments (bypass bot detection)
+YT_COOKIES_PATH = os.environ.get("YT_COOKIES_PATH", "")
+
+
+def _yt_cookie_opts() -> dict:
+    """Return yt-dlp cookie options if cookies file exists."""
+    if YT_COOKIES_PATH and Path(YT_COOKIES_PATH).is_file():
+        return {"cookiefile": YT_COOKIES_PATH}
+    return {}
+
 
 def extract_video_id(url: str) -> str:
     """Extract YouTube video ID from URL without calling YouTube API.
@@ -27,7 +37,7 @@ def extract_video_id(url: str) -> str:
         return vid
 
     # Fallback to yt-dlp (works on localhost, may fail on cloud)
-    with yt_dlp.YoutubeDL({"quiet": True, "noplaylist": True}) as ydl:
+    with yt_dlp.YoutubeDL({"quiet": True, "noplaylist": True, **_yt_cookie_opts()}) as ydl:
         info = ydl.extract_info(url, download=False)
         return info["id"]
 
@@ -51,6 +61,7 @@ def extract_playlist_urls(url: str) -> list[dict]:
         "no_warnings": True,
         "extract_flat": True,
         "force_generic_extractor": False,
+        **_yt_cookie_opts(),
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -98,6 +109,7 @@ def get_captions(
             "subtitlesformat": "vtt",
             "skip_download": True,
             "outtmpl": str(tmp_dir / "%(id)s"),
+            **_yt_cookie_opts(),
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -223,6 +235,7 @@ def download_audio(url: str) -> DownloadResult:
         "outtmpl": str(tmp_dir / "%(id)s.%(ext)s"),
         "quiet": True,
         "no_warnings": True,
+        **_yt_cookie_opts(),
     }
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -369,6 +382,7 @@ def download_media(
         "quiet": True,
         "no_warnings": True,
         "progress_hooks": [progress_hook],
+        **_yt_cookie_opts(),
     }
     if postprocessors:
         ydl_opts["postprocessors"] = postprocessors
