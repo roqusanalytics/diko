@@ -1,5 +1,7 @@
 """YouTube audio/media downloader using yt-dlp."""
 
+import base64
+import json
 import logging
 import os
 import re
@@ -8,24 +10,104 @@ import tempfile
 from pathlib import Path
 from typing import Callable
 
+import httpx
 import yt_dlp
 
 from models import DownloadResult, MediaDownloadResult, TranscriptSegment
 
 logger = logging.getLogger(__name__)
 
-# YouTube cookies for cloud deployments (bypass bot detection)
-YT_COOKIES_PATH = os.environ.get("YT_COOKIES_PATH", "")
+# Valid formats and quality options
+AUDIO_FORMATS = {"mp3", "m4a", "wav", "flac", "ogg"}
+VIDEO_FORMATS = {"mp4", "webm"}
+LOSSY_FORMATS = {"mp3", "ogg"}
+VALID_BITRATES = {"128", "192", "320"}
+VALID_RESOLUTIONS = {"360", "720", "1080", "best"}
 
 
 def _yt_cookie_opts() -> dict:
-    """Return yt-dlp cookie options if cookies file exists."""
-    if YT_COOKIES_PATH and Path(YT_COOKIES_PATH).is_file():
-        return {"cookiefile": YT_COOKIES_PATH}
-    return {}
+    """Return yt-dlp cookie + JS challenge options for cloud deployment."""
+    opts: dict = {}
+    cookies_path = os.environ.get("YT_COOKIES_PATH", "")
+    if cookies_path and Path(cookies_path).is_file():
+        opts["cookiefile"] = cookies_path
+        # Enable remote JS challenge solver (needed on cloud servers)
+        opts["remote_components"] = ["ejs:github"]
+    return opts
+
+
+def _worker_base_url() -> str:
+    return os.environ.get("YTDLP_WORKER_URL", "").rstrip("/")
+
+
+def _worker_token() -> str:
+    return os.environ.get("YTDLP_WORKER_TOKEN", "")
+
+
+def _use_worker() -> bool:
+    return bool(_worker_base_url())
+
+
+def _worker_headers() -> dict[str, str]:
+    headers = {"Content-Type": "application/json"}
+    token = _worker_token()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def _decode_meta_header(meta_b64: str | None) -> dict:
+    if not meta_b64:
+        return {}
+    return json.loads(base64.urlsafe_b64decode(meta_b64.encode()).decode("utf-8"))
+
+
+def _worker_json(path: str, payload: dict, timeout: float = 120.0) -> dict:
+    """POST JSON to the residential worker and return decoded JSON."""
+    url = f"{_worker_base_url()}{path}"
+    with httpx.Client(timeout=timeout) as client:
+        res = client.post(url, json=payload, headers=_worker_headers())
+        res.raise_for_status()
+        return res.json()
+
+
+def _worker_download(
+    path: str,
+    payload: dict,
+    tmp_prefix: str,
+    fallback_ext: str,
+    timeout: float = 900.0,
+) -> tuple[Path, dict]:
+    """Stream a downloaded file from the worker into a local temp file."""
+    url = f"{_worker_base_url()}{path}"
+    tmp_dir = Path(tempfile.mkdtemp(prefix=tmp_prefix))
+    meta: dict = {}
+    ext = fallback_ext
+
+    with httpx.Client(timeout=timeout) as client:
+        with client.stream("POST", url, json=payload, headers=_worker_headers()) as res:
+            res.raise_for_status()
+            meta = _decode_meta_header(res.headers.get("X-Transkribas-Meta"))
+            ext = meta.get("ext", fallback_ext) or fallback_ext
+            video_id = meta.get("video_id", "remote")
+            out_path = tmp_dir / f"{video_id}.{ext}"
+            with out_path.open("wb") as f:
+                for chunk in res.iter_bytes():
+                    f.write(chunk)
+
+    meta.setdefault("file_size", out_path.stat().st_size)
+    meta.setdefault("ext", ext)
+    return out_path, meta
 
 
 def extract_video_id(url: str) -> str:
+    """Extract YouTube video ID, optionally via residential worker."""
+    if _use_worker():
+        return _worker_json("/internal/youtube/extract-video-id", {"url": url})["video_id"]
+    return extract_video_id_local(url)
+
+
+def extract_video_id_local(url: str) -> str:
     """Extract YouTube video ID from URL without calling YouTube API.
 
     Parses the ID from the URL directly to avoid bot detection on
@@ -55,6 +137,13 @@ def _parse_video_id(url: str) -> str | None:
 
 
 def extract_playlist_urls(url: str) -> list[dict]:
+    """Extract playlist entries, optionally via residential worker."""
+    if _use_worker():
+        return _worker_json("/internal/youtube/playlist", {"url": url}).get("videos", [])
+    return extract_playlist_urls_local(url)
+
+
+def extract_playlist_urls_local(url: str) -> list[dict]:
     """Extract all video URLs from a YouTube playlist. Returns list of {url, title, video_id, duration}."""
     ydl_opts = {
         "quiet": True,
@@ -88,6 +177,31 @@ def is_playlist_url(url: str) -> bool:
 
 
 def get_captions(
+    url: str, language: str = "en"
+) -> dict | None:
+    """Try to get captions, optionally via residential worker."""
+    if _use_worker():
+        data = _worker_json(
+            "/internal/youtube/captions",
+            {"url": url, "language": language},
+            timeout=300.0,
+        )
+        if not data.get("ok"):
+            return None
+        return {
+            "video_id": data["video_id"],
+            "title": data["title"],
+            "duration": data["duration"],
+            "channel_name": data.get("channel_name", ""),
+            "view_count": data.get("view_count", 0),
+            "like_count": data.get("like_count", 0),
+            "source": data["source"],
+            "segments": [TranscriptSegment(**s) for s in data["segments"]],
+        }
+    return get_captions_local(url, language)
+
+
+def get_captions_local(
     url: str, language: str = "en"
 ) -> dict | None:
     """
@@ -227,6 +341,28 @@ def _cleanup_dir(dir_path: Path) -> None:
 
 
 def download_audio(url: str) -> DownloadResult:
+    """Download audio locally or through the residential worker."""
+    if _use_worker():
+        audio_path, meta = _worker_download(
+            "/internal/youtube/audio",
+            {"url": url},
+            tmp_prefix="transkribas_",
+            fallback_ext="m4a",
+        )
+        return DownloadResult(
+            audio_path=str(audio_path),
+            video_id=meta.get("video_id", audio_path.stem),
+            title=meta.get("title", "Unknown"),
+            duration=float(meta.get("duration", 0)),
+            thumbnail_url=meta.get("thumbnail_url", ""),
+            channel_name=meta.get("channel_name", ""),
+            view_count=int(meta.get("view_count", 0)),
+            like_count=int(meta.get("like_count", 0)),
+        )
+    return download_audio_local(url)
+
+
+def download_audio_local(url: str) -> DownloadResult:
     """Download audio from YouTube URL as m4a. Returns DownloadResult with file path."""
     tmp_dir = Path(tempfile.mkdtemp(prefix="transkribas_"))
 
@@ -285,13 +421,6 @@ def cleanup_audio(audio_path: str) -> None:
 
 # --- Media download (user-facing, format/quality/trim) ---
 
-# Valid formats and quality options
-AUDIO_FORMATS = {"mp3", "m4a", "wav", "flac", "ogg"}
-VIDEO_FORMATS = {"mp4", "webm"}
-LOSSY_FORMATS = {"mp3", "ogg"}
-VALID_BITRATES = {"128", "192", "320"}
-VALID_RESOLUTIONS = {"360", "720", "1080", "best"}
-
 
 def _build_format_string(
     fmt: str, quality: str
@@ -340,6 +469,51 @@ def _build_format_string(
 
 
 def download_media(
+    url: str,
+    fmt: str = "mp3",
+    quality: str = "320",
+    start_time: float | None = None,
+    end_time: float | None = None,
+    on_progress: Callable[[float, str], None] | None = None,
+) -> MediaDownloadResult:
+    """Download media locally or through the residential worker."""
+    if _use_worker():
+        if on_progress:
+            on_progress(0.05, "delegating")
+        file_path, meta = _worker_download(
+            "/internal/youtube/media",
+            {
+                "url": url,
+                "format": fmt,
+                "quality": quality,
+                "start_time": start_time,
+                "end_time": end_time,
+            },
+            tmp_prefix="transkribas_media_",
+            fallback_ext=fmt,
+            timeout=1800.0,
+        )
+        if on_progress:
+            on_progress(1.0, "downloading")
+        return MediaDownloadResult(
+            file_path=str(file_path),
+            video_id=meta.get("video_id", file_path.stem),
+            title=meta.get("title", "Unknown"),
+            duration=float(meta.get("duration", 0)),
+            format=meta.get("format", fmt),
+            file_size=int(meta.get("file_size", file_path.stat().st_size)),
+        )
+    return download_media_local(
+        url,
+        fmt=fmt,
+        quality=quality,
+        start_time=start_time,
+        end_time=end_time,
+        on_progress=on_progress,
+    )
+
+
+def download_media_local(
     url: str,
     fmt: str = "mp3",
     quality: str = "320",
