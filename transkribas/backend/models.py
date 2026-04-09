@@ -42,6 +42,7 @@ class TranscriptionResult:
 class SummaryResult:
     text: str
     model: str  # which model was used
+    categories: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -59,6 +60,8 @@ class TranscriptRecord:
     channel_name: str = ""
     view_count: int = 0
     like_count: int = 0
+    categories: list[str] = field(default_factory=list)  # auto-assigned categories
+    category_status: str = ""  # pending, done, failed, no_key
     created_at: str = ""
 
 

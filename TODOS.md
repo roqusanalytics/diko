@@ -1,5 +1,11 @@
 # TODOS
 
+## Collection Filter Broken (LibraryPage)
+- **What:** Fix collection filter buttons in LibraryPage.tsx — they set `collectionFilter` state (line 198) but `displayItems` useMemo (line 230) never reads it, so clicking a collection filter does nothing.
+- **Why:** Blocks useful category/collection filtering. The UI renders clickable filter buttons that have zero effect. Users will expect filtering to work once auto-categories are added.
+- **Context:** The `collectionFilter` state is toggled by onClick handlers (line 373) but `displayItems` only applies language and search filters. Need to add a collection filter branch: fetch collection transcript IDs from `/api/collections/{id}/transcripts` and filter `items` by matching `video_id`. Found by Codex outside voice during eng review.
+- **Depends on:** Nothing. Can be fixed independently. Should be fixed before or alongside auto-categorization feature.
+
 ## YouTube Rate Limit Handling
 - **What:** Add retry with exponential backoff to downloader.py for yt-dlp calls
 - **Why:** YouTube can rate-limit downloads, causing silent failures or stuck progress bars

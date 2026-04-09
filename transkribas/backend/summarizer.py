@@ -2,6 +2,10 @@
 
 import httpx
 
+from categorizer import (
+    CATEGORY_INSTRUCTION,
+    parse_categories_from_response,
+)
 from models import SummaryResult
 
 
@@ -38,6 +42,7 @@ async def summarize(text: str, api_key: str, model: str = "anthropic/claude-sonn
                             "- Skaičiai, tyrimai, pavyzdžiai ar citatos, kurios pagrindžia pagrindinius teiginius.\n\n"
                             "Rašyk TIK lietuviškai, nepriklausomai nuo transkripto kalbos. "
                             "Būk konkretus ir informatyvus — vengk bendrybių."
+                            + CATEGORY_INSTRUCTION
                         ),
                     },
                     {"role": "user", "content": text},
@@ -47,6 +52,11 @@ async def summarize(text: str, api_key: str, model: str = "anthropic/claude-sonn
         )
         response.raise_for_status()
         data = response.json()
-        summary_text = data["choices"][0]["message"]["content"]
+        raw_text = data["choices"][0]["message"]["content"]
 
-    return SummaryResult(text=summary_text, model=model)
+    summary_text, categories = parse_categories_from_response(
+        raw_text,
+    )
+    return SummaryResult(
+        text=summary_text, model=model, categories=categories,
+    )

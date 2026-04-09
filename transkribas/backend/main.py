@@ -185,6 +185,7 @@ async def process_jobs():
             try:
                 if settings.openrouter_api_key:
                     db.update_summary_status(download_result.video_id, "pending")
+                    db.update_category_status(download_result.video_id, "pending")
                     full_text = " ".join(s.text for s in transcription.segments)
                     summary = await summarizer.summarize(
                         full_text,
@@ -192,17 +193,24 @@ async def process_jobs():
                         settings.openrouter_model,
                     )
                     db.update_summary(download_result.video_id, summary.text, "done")
+                    db.update_categories(download_result.video_id, summary.categories, "done")
                     record.summary = summary.text
                     record.summary_status = "done"
+                    record.categories = summary.categories
+                    record.category_status = "done"
                     job["result"] = record
                 else:
                     db.update_summary_status(download_result.video_id, "no_key")
+                    db.update_category_status(download_result.video_id, "no_key")
                     record.summary_status = "no_key"
+                    record.category_status = "no_key"
                     job["result"] = record
             except Exception as e:
                 logger.warning(f"Summary failed for {download_result.video_id}: {e}")
                 db.update_summary_status(download_result.video_id, "failed")
+                db.update_category_status(download_result.video_id, "failed")
                 record.summary_status = "failed"
+                record.category_status = "failed"
                 job["result"] = record
 
             t_summary = time.monotonic() - t2
@@ -680,9 +688,10 @@ async def transcribe_video(req: TranscribeRequest):
 
 
 async def _generate_summary_async(video_id: str, segments, settings) -> None:
-    """Generate summary in background for caption-sourced transcripts."""
+    """Generate summary + categories in background for caption-sourced transcripts."""
     try:
         if settings.openrouter_api_key:
+            db.update_category_status(video_id, "pending")
             full_text = " ".join(s.text for s in segments)
             summary = await summarizer.summarize(
                 full_text,
@@ -690,11 +699,14 @@ async def _generate_summary_async(video_id: str, segments, settings) -> None:
                 settings.openrouter_model,
             )
             db.update_summary(video_id, summary.text, "done")
+            db.update_categories(video_id, summary.categories, "done")
         else:
             db.update_summary_status(video_id, "no_key")
+            db.update_category_status(video_id, "no_key")
     except Exception as e:
         logger.warning(f"Background summary failed for {video_id}: {e}")
         db.update_summary_status(video_id, "failed")
+        db.update_category_status(video_id, "failed")
 
 
 @app.post("/api/jobs/{job_id}/cancel")
@@ -939,6 +951,7 @@ async def regenerate_summary(video_id: str):
         raise HTTPException(400, "OpenRouter API raktas nenustatytas")
 
     db.update_summary_status(video_id, "pending")
+    db.update_category_status(video_id, "pending")
 
     try:
         full_text = " ".join(s.text for s in record.segments)
@@ -948,9 +961,15 @@ async def regenerate_summary(video_id: str):
             settings.openrouter_model,
         )
         db.update_summary(video_id, summary.text, "done")
-        return {"summary": summary.text, "status": "done"}
+        db.update_categories(video_id, summary.categories, "done")
+        return {
+            "summary": summary.text,
+            "categories": summary.categories,
+            "status": "done",
+        }
     except Exception as e:
         db.update_summary_status(video_id, "failed")
+        db.update_category_status(video_id, "failed")
         raise HTTPException(500, f"Summary failed: {str(e)}")
 
 
@@ -1028,6 +1047,12 @@ async def search(q: str = ""):
 async def library():
     """List all transcribed videos."""
     return {"items": db.list_transcripts()}
+
+
+@app.get("/api/categories")
+async def get_categories():
+    """Get category names with transcript counts for filter UI."""
+    return {"categories": db.get_category_counts()}
 
 
 @app.get("/api/settings")

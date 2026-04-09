@@ -22,6 +22,7 @@ def _get_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 
@@ -97,6 +98,10 @@ def _migrate_columns(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE transcripts ADD COLUMN view_count INTEGER DEFAULT 0")
     if "like_count" not in existing:
         conn.execute("ALTER TABLE transcripts ADD COLUMN like_count INTEGER DEFAULT 0")
+    if "categories_json" not in existing:
+        conn.execute("ALTER TABLE transcripts ADD COLUMN categories_json TEXT DEFAULT '[]'")
+    if "category_status" not in existing:
+        conn.execute("ALTER TABLE transcripts ADD COLUMN category_status TEXT DEFAULT ''")
     conn.commit()
 
 
@@ -108,13 +113,16 @@ def save_transcript(record: TranscriptRecord) -> None:
     )
     full_text = " ".join(s.text for s in record.segments)
 
+    categories_json_str = json.dumps(record.categories, ensure_ascii=False) if record.categories else "[]"
+
     conn.execute(
         """INSERT OR REPLACE INTO transcripts
-           (video_id, title, url, language, duration, segments_json, summary, summary_status, source, translated_text, channel_name, view_count, like_count)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           (video_id, title, url, language, duration, segments_json, summary, summary_status, source, translated_text, channel_name, view_count, like_count, categories_json, category_status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (record.video_id, record.title, record.url, record.language,
          record.duration, segments_json, record.summary, record.summary_status, record.source,
-         record.translated_text, record.channel_name, record.view_count, record.like_count),
+         record.translated_text, record.channel_name, record.view_count, record.like_count,
+         categories_json_str, record.category_status),
     )
 
     # Update FTS index
@@ -142,6 +150,9 @@ def get_transcript(video_id: str) -> TranscriptRecord | None:
         TranscriptSegment(**s) for s in json.loads(row["segments_json"])
     ]
 
+    categories_raw = row["categories_json"] if "categories_json" in row.keys() else "[]"
+    categories = json.loads(categories_raw) if categories_raw else []
+
     return TranscriptRecord(
         video_id=row["video_id"],
         title=row["title"],
@@ -156,6 +167,8 @@ def get_transcript(video_id: str) -> TranscriptRecord | None:
         channel_name=row["channel_name"] if "channel_name" in row.keys() else "",
         view_count=row["view_count"] if "view_count" in row.keys() else 0,
         like_count=row["like_count"] if "like_count" in row.keys() else 0,
+        categories=categories,
+        category_status=row["category_status"] if "category_status" in row.keys() else "",
         created_at=row["created_at"],
     )
 
@@ -195,11 +208,20 @@ def list_transcripts() -> list[dict]:
     """List all transcripts ordered by creation date."""
     conn = _get_conn()
     rows = conn.execute(
-        """SELECT video_id, title, url, language, duration, summary, source, summary_status, channel_name, view_count, like_count, created_at
+        """SELECT video_id, title, url, language, duration,
+           summary, source, summary_status,
+           channel_name, view_count, like_count,
+           categories_json, category_status, created_at
            FROM transcripts ORDER BY created_at DESC"""
     ).fetchall()
     conn.close()
-    return [dict(row) for row in rows]
+    results = []
+    for row in rows:
+        d = dict(row)
+        raw = d.pop("categories_json", "[]")
+        d["categories"] = json.loads(raw) if raw else []
+        results.append(d)
+    return results
 
 
 def delete_transcript(video_id: str) -> None:
@@ -231,6 +253,43 @@ def update_summary_status(video_id: str, status: str) -> None:
     )
     conn.commit()
     conn.close()
+
+
+def update_categories(video_id: str, categories: list[str], status: str = "done") -> None:
+    """Update auto-assigned categories for a transcript."""
+    conn = _get_conn()
+    conn.execute(
+        "UPDATE transcripts SET categories_json = ?, category_status = ? WHERE video_id = ?",
+        (json.dumps(categories, ensure_ascii=False), status, video_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_category_status(video_id: str, status: str) -> None:
+    """Update only the category status (pending, done, failed, no_key)."""
+    conn = _get_conn()
+    conn.execute(
+        "UPDATE transcripts SET category_status = ? WHERE video_id = ?",
+        (status, video_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_category_counts() -> list[dict]:
+    """Get category names with transcript counts for filter UI."""
+    conn = _get_conn()
+    rows = conn.execute(
+        "SELECT categories_json FROM transcripts WHERE category_status = 'done' AND categories_json != '[]'"
+    ).fetchall()
+    conn.close()
+
+    counts: dict[str, int] = {}
+    for row in rows:
+        for cat in json.loads(row["categories_json"]):
+            counts[cat] = counts.get(cat, 0) + 1
+    return [{"name": k, "count": v} for k, v in sorted(counts.items(), key=lambda x: -x[1])]
 
 
 def update_translation(video_id: str, translated_text: str) -> None:

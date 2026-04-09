@@ -17,7 +17,27 @@ interface LibraryItem {
   channel_name: string
   view_count: number
   like_count: number
+  categories: string[]
+  category_status: string
   created_at: string
+}
+
+const CATEGORY_LABELS_LT: Record<string, string> = {
+  AI: 'DI',
+  Programming: 'Programavimas',
+  Business: 'Verslas',
+  Science: 'Mokslas',
+  Education: 'Švietimas',
+  Design: 'Dizainas',
+  Marketing: 'Rinkodara',
+  Finance: 'Finansai',
+  Health: 'Sveikata',
+  Music: 'Muzika',
+  Gaming: 'Žaidimai',
+  News: 'Naujienos',
+  Philosophy: 'Filosofija',
+  Productivity: 'Produktyvumas',
+  Other: 'Kita',
 }
 
 interface TranscriptData {
@@ -196,6 +216,8 @@ export default function LibraryPage() {
   const [stats, setStats] = useState<any>(null)
   const [collections, setCollections] = useState<{id: number, name: string, count: number}[]>([])
   const [collectionFilter, setCollectionFilter] = useState<number | null>(null)
+  const [categoryCounts, setCategoryCounts] = useState<{name: string, count: number}[]>([])
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [showNewCollection, setShowNewCollection] = useState(false)
   const [newCollectionName, setNewCollectionName] = useState('')
   const navigate = useNavigate()
@@ -204,6 +226,7 @@ export default function LibraryPage() {
     loadItems()
     fetch(`${API}/api/stats`).then(r => r.json()).then(setStats)
     fetch(`${API}/api/collections`).then(r => r.json()).then(d => setCollections(d.collections || []))
+    fetch(`${API}/api/categories`).then(r => r.json()).then(d => setCategoryCounts(d.categories || []))
   }, [])
 
   const loadItems = () => {
@@ -229,6 +252,13 @@ export default function LibraryPage() {
   // Filter + sort
   const displayItems = useMemo(() => {
     let filtered = items
+
+    // Category filter
+    if (categoryFilter) {
+      filtered = filtered.filter(i =>
+        i.categories && i.categories.includes(categoryFilter)
+      )
+    }
 
     // Language filter
     if (langFilter === 'en') filtered = filtered.filter(i => i.language === 'en')
@@ -256,7 +286,7 @@ export default function LibraryPage() {
     }
 
     return sorted
-  }, [items, query, sortBy, langFilter])
+  }, [items, query, sortBy, langFilter, categoryFilter])
 
   const totalPages = Math.max(1, Math.ceil(displayItems.length / perPage))
   const safeCurrentPage = Math.min(currentPage, totalPages)
@@ -353,6 +383,32 @@ export default function LibraryPage() {
             <div className="stat-value">{Math.round(stats.avg_duration / 60)}min</div>
             <div className="stat-label">Vid. trukmė</div>
           </div>
+        </div>
+      )}
+
+      {/* Category filter tabs */}
+      {categoryCounts.length > 0 && (
+        <div className="category-tabs" role="tablist">
+          <button
+            className={`category-tab ${categoryFilter === null ? 'active' : ''}`}
+            role="tab"
+            aria-selected={categoryFilter === null}
+            onClick={() => setCategoryFilter(null)}
+          >
+            Visos
+          </button>
+          {categoryCounts.map(c => (
+            <button
+              key={c.name}
+              className={`category-tab ${categoryFilter === c.name ? 'active' : ''}`}
+              role="tab"
+              aria-selected={categoryFilter === c.name}
+              onClick={() => setCategoryFilter(categoryFilter === c.name ? null : c.name)}
+            >
+              {CATEGORY_LABELS_LT[c.name] || c.name}
+              <span className="category-tab-count">({c.count})</span>
+            </button>
+          ))}
         </div>
       )}
 
@@ -474,6 +530,26 @@ export default function LibraryPage() {
           <div key={item.video_id} className={`lib-card ${selectedId === item.video_id ? 'expanded' : ''}`}>
             <div className="lib-card-body" onClick={() => openTranscript(item.video_id)}>
               <div className="lib-card-content">
+                {item.categories && item.categories.length > 0 && (
+                  <div className="lib-card-categories">
+                    {item.categories.slice(0, 2).map((cat, i) => (
+                      <span key={cat}>
+                        {i > 0 && <span className="category-sep"> · </span>}
+                        <span className="category-label">
+                          {CATEGORY_LABELS_LT[cat] || cat}
+                        </span>
+                      </span>
+                    ))}
+                    {item.categories.length > 2 && (
+                      <span className="category-overflow"> +{item.categories.length - 2}</span>
+                    )}
+                  </div>
+                )}
+                {item.category_status === 'pending' && (
+                  <div className="lib-card-categories category-pending">
+                    Kategorizuojama...
+                  </div>
+                )}
                 <div className="lib-card-title">{item.title}</div>
                 {item.channel_name && (
                   <div className="lib-card-channel">{item.channel_name}</div>
