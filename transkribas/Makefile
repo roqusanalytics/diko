@@ -19,6 +19,13 @@ deps:
 	@echo "All system dependencies installed."
 
 dev:
-	@echo "Run in two terminals:"
-	@echo "  make backend"
-	@echo "  make frontend"
+	@echo "Starting Diko (backend + frontend)..."
+	@cd backend && uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000 & \
+	cd frontend && bun run dev -- --host 0.0.0.0 & \
+	wait
+
+stop:
+	@echo "Stopping Diko..."
+	@-lsof -ti:8000 | xargs kill 2>/dev/null
+	@-lsof -ti:5173 | xargs kill 2>/dev/null
+	@echo "Stopped."
