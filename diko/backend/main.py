@@ -1581,6 +1581,8 @@ def _serialize_record(record: TranscriptRecord) -> dict:
         "channel_name": record.channel_name,
         "view_count": record.view_count,
         "like_count": record.like_count,
+        "categories": record.categories,
+        "category_status": record.category_status,
         "created_at": record.created_at,
         "segments": [
             {"start": s.start, "end": s.end, "text": s.text}
