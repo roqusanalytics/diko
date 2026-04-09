@@ -690,7 +690,7 @@ export default function TranscribePage({ onTranscribed, onTitleChange }: Props) 
             )}
 
             {!transcript.summary && !loading && (
-              <div className="summary-box summary-unavailable">
+              <div className={`summary-box summary-unavailable ${transcript.summary_status === 'pending' ? 'summary-shimmer' : ''}`}>
                 <div className="summary-label">AI Santrauka</div>
                 <p>
                   {transcript.summary_status === 'failed'
