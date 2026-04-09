@@ -16,10 +16,32 @@ logger = logging.getLogger(__name__)
 
 
 def extract_video_id(url: str) -> str:
-    """Extract canonical YouTube video ID from any URL format."""
+    """Extract YouTube video ID from URL without calling YouTube API.
+
+    Parses the ID from the URL directly to avoid bot detection on
+    cloud servers. Falls back to yt-dlp only if regex fails.
+    """
+    # Try regex first (no network call, no bot detection)
+    vid = _parse_video_id(url)
+    if vid:
+        return vid
+
+    # Fallback to yt-dlp (works on localhost, may fail on cloud)
     with yt_dlp.YoutubeDL({"quiet": True, "noplaylist": True}) as ydl:
         info = ydl.extract_info(url, download=False)
         return info["id"]
+
+
+def _parse_video_id(url: str) -> str | None:
+    """Parse YouTube video ID from URL using regex. No network call."""
+    patterns = [
+        r"(?:youtube\.com/watch\?.*v=|youtu\.be/|youtube\.com/embed/|youtube\.com/v/|youtube\.com/shorts/)([a-zA-Z0-9_-]{11})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    return None
 
 
 def extract_playlist_urls(url: str) -> list[dict]:
