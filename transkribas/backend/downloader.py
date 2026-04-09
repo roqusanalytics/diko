@@ -48,9 +48,10 @@ def _use_worker() -> bool:
     return bool(_worker_base_url())
 
 
-def _transcript_worker_url() -> str:
-    """Residential transcript worker URL (Flask on Tailscale Funnel)."""
-    return os.environ.get("TRANSCRIPT_WORKER_URL", "").rstrip("/")
+def _transcript_worker_urls() -> list[str]:
+    """Residential transcript worker URLs (comma-separated, tried in order)."""
+    raw = os.environ.get("TRANSCRIPT_WORKER_URL", "")
+    return [u.strip().rstrip("/") for u in raw.split(",") if u.strip()]
 
 
 def _transcript_worker_token() -> str:
@@ -60,14 +61,14 @@ def _transcript_worker_token() -> str:
 def fetch_transcript_from_worker(
     video_id: str, language: str = "en"
 ) -> list[TranscriptSegment] | None:
-    """Fetch transcript text from the residential worker.
+    """Fetch transcript text from residential workers with failover.
 
-    The worker runs youtube-transcript-api from a residential IP,
-    bypassing YouTube's datacenter bot detection.
-    Returns list of TranscriptSegment or None if unavailable.
+    Tries each worker URL in order. The workers run youtube-transcript-api
+    from residential IPs, bypassing YouTube's datacenter bot detection.
+    Returns list of TranscriptSegment or None if all workers fail.
     """
-    base = _transcript_worker_url()
-    if not base:
+    urls = _transcript_worker_urls()
+    if not urls:
         return None
 
     headers: dict[str, str] = {"Content-Type": "application/json"}
@@ -75,37 +76,43 @@ def fetch_transcript_from_worker(
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
-    try:
-        with httpx.Client(timeout=30) as client:
-            r = client.post(
-                f"{base}/transcript",
-                json={"video_id": video_id, "language": language},
-                headers=headers,
+    for base in urls:
+        try:
+            with httpx.Client(timeout=30) as client:
+                r = client.post(
+                    f"{base}/transcript",
+                    json={"video_id": video_id, "language": language},
+                    headers=headers,
+                )
+                r.raise_for_status()
+                data = r.json()
+
+            if not data.get("ok"):
+                logger.warning(f"Worker {base} error: {data.get('error', 'unknown')}")
+                continue
+
+            segments = []
+            for s in data.get("segments", []):
+                segments.append(TranscriptSegment(
+                    start=float(s["start"]),
+                    end=float(s["start"]) + float(s.get("duration", 0)),
+                    text=s.get("text", ""),
+                ))
+
+            if not segments:
+                continue
+
+            logger.info(
+                f"Worker {base} returned {len(segments)} segments for {video_id}"
             )
-            r.raise_for_status()
-            data = r.json()
+            return segments
 
-        if not data.get("ok"):
-            logger.warning(f"Transcript worker error: {data.get('error', 'unknown')}")
-            return None
+        except Exception as e:
+            logger.warning(f"Worker {base} unreachable: {e}")
+            continue
 
-        segments = []
-        for s in data.get("segments", []):
-            segments.append(TranscriptSegment(
-                start=float(s["start"]),
-                end=float(s["start"]) + float(s.get("duration", 0)),
-                text=s.get("text", ""),
-            ))
-
-        if not segments:
-            return None
-
-        logger.info(f"Residential worker returned {len(segments)} segments for {video_id}")
-        return segments
-
-    except Exception as e:
-        logger.warning(f"Transcript worker unreachable: {e}")
-        return None
+    logger.warning(f"All transcript workers failed for {video_id}")
+    return None
 
 
 def _worker_headers() -> dict[str, str]:
