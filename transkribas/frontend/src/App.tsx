@@ -7,7 +7,7 @@ import Breadcrumb from './components/Breadcrumb'
 import { MediaDownloadProvider, useMediaDownloads } from './components/MediaDownloadContext'
 import './App.css'
 
-const API = ''  // Uses Vite proxy in dev, same origin in prod
+const API = import.meta.env.VITE_API_URL || ''  // Railway URL in prod, empty (proxy) in dev
 
 export { API }
 
