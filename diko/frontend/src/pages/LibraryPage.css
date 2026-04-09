@@ -462,13 +462,61 @@
   display: none;
 }
 
+.lib-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
 .lib-detail-label {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-muted);
+  margin-bottom: 0;
+}
+
+/* When label is standalone (no header wrapper), keep original margin */
+.lib-detail-label:only-child,
+.lib-detail-summary > .lib-detail-label,
+.lib-detail-transcript > .lib-detail-label {
   margin-bottom: 4px;
+}
+
+.section-copy-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-copy-sm {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.1s ease;
+  line-height: 1.4;
+}
+
+.btn-copy-sm:hover {
+  background: var(--bg-card-hover, #ede6eb);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.lib-detail-summary .btn-copy-sm:hover {
+  background: var(--warm-border);
+  color: var(--warm);
+}
+
+.lib-detail-translation .btn-copy-sm:hover {
+  background: var(--accent-light);
+  color: var(--accent-dark, var(--accent));
 }
 
 .lib-detail-summary {

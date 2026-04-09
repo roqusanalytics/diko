@@ -121,10 +121,44 @@ function mergeSegments(segments: { start: number; end: number; text: string }[])
   return paragraphs
 }
 
-function CollapsibleCard({ className, label, children }: {
+function saveMdFile(content: string, filename: string) {
+  const blob = new Blob([content], { type: 'text/markdown' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+function CopyButtons({ text, md, mdFilename }: { text: string; md: string; mdFilename?: string }) {
+  const [copied, setCopied] = useState<'text' | 'md' | null>(null)
+  const copy = (content: string, type: 'text' | 'md') => {
+    navigator.clipboard.writeText(content)
+    setCopied(type)
+    setTimeout(() => setCopied(null), 1500)
+  }
+  return (
+    <div className="section-copy-buttons">
+      <button className="btn-copy-sm" onClick={() => copy(text, 'text')}>
+        {copied === 'text' ? '✓' : 'Kopijuoti'}
+      </button>
+      <button className="btn-copy-sm" onClick={() => copy(md, 'md')}>
+        {copied === 'md' ? '✓' : 'MD'}
+      </button>
+      <button className="btn-copy-sm" onClick={() => saveMdFile(md, mdFilename || 'export.md')} title="Atsisiųsti .md failą">
+        ⬇ .md
+      </button>
+    </div>
+  )
+}
+
+function CollapsibleCard({ className, label, children, copyText, copyMd, mdFilename }: {
   className: string
   label: string
   children: React.ReactNode
+  copyText?: string
+  copyMd?: string
+  mdFilename?: string
 }) {
   const [expanded, setExpanded] = useState(false)
   const innerRef = useRef<HTMLDivElement>(null)
@@ -143,7 +177,10 @@ function CollapsibleCard({ className, label, children }: {
 
   return (
     <div className={className}>
-      <div className="lib-detail-label">{label}</div>
+      <div className="lib-detail-header">
+        <div className="lib-detail-label">{label}</div>
+        {copyText && copyMd && <CopyButtons text={copyText} md={copyMd} mdFilename={mdFilename} />}
+      </div>
       <div
         className={`collapsible-content ${!expanded && needsExpand ? 'collapsible-collapsed' : ''}`}
         style={!expanded && needsExpand ? { maxHeight: collapsedHeight } : undefined}
@@ -162,7 +199,7 @@ function CollapsibleCard({ className, label, children }: {
   )
 }
 
-function LibrarySummaryBox({ text }: { text: string }) {
+function LibrarySummaryBox({ text, title }: { text: string; title?: string }) {
   const [expanded, setExpanded] = useState(false)
   const innerRef = useRef<HTMLDivElement>(null)
   const [needsExpand, setNeedsExpand] = useState(false)
@@ -178,9 +215,20 @@ function LibrarySummaryBox({ text }: { text: string }) {
     return () => ro.disconnect()
   }, [text])
 
+  // Strip markdown for plain text copy
+  const plainText = text
+    .replace(/#{1,6}\s+/g, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/- /g, '• ')
+    .trim()
+
   return (
     <div className="lib-detail-summary">
-      <div className="lib-detail-label">Santrauka</div>
+      <div className="lib-detail-header">
+        <div className="lib-detail-label">Santrauka</div>
+        <CopyButtons text={plainText} md={text} mdFilename={title ? `${title} - santrauka.md` : 'santrauka.md'} />
+      </div>
       <div
         className={`summary-content ${!expanded && needsExpand ? 'summary-collapsed' : ''}`}
         style={!expanded && needsExpand ? { maxHeight: collapsedHeight } : undefined}
@@ -648,7 +696,7 @@ export default function LibraryPage() {
 
                     {/* Summary */}
                     {selectedTranscript.summary && (
-                      <LibrarySummaryBox text={selectedTranscript.summary} />
+                      <LibrarySummaryBox text={selectedTranscript.summary} title={item.title} />
                     )}
 
                     {/* Translation */}
@@ -656,6 +704,9 @@ export default function LibraryPage() {
                       <CollapsibleCard
                         className="lib-detail-translation"
                         label="Vertimas (LT)"
+                        copyText={selectedTranscript.translated_text}
+                        copyMd={`## Vertimas (LT)\n\n${selectedTranscript.translated_text}`}
+                        mdFilename={`${item.title} - vertimas.md`}
                       >
                         {selectedTranscript.translated_text.split('\n\n').map((para, i) => (
                           <p key={i}>{para}</p>
@@ -665,7 +716,14 @@ export default function LibraryPage() {
 
                     {/* Transcript text */}
                     <div className="lib-detail-transcript">
-                      <div className="lib-detail-label">Transkripcija</div>
+                      <div className="lib-detail-header">
+                        <div className="lib-detail-label">Transkripcija</div>
+                        <CopyButtons
+                          text={mergeSegments(selectedTranscript.segments).join('\n\n')}
+                          md={`## Transkripcija\n\n${mergeSegments(selectedTranscript.segments).join('\n\n')}`}
+                          mdFilename={`${item.title} - transkripcija.md`}
+                        />
+                      </div>
                       <div className="lib-detail-text">
                         {mergeSegments(selectedTranscript.segments).map((para, i) => (
                           <p key={i}>{para}</p>

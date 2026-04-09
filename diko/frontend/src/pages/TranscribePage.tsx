@@ -80,7 +80,38 @@ function getProgressText(
   return `${pct}% · Eilėje...`
 }
 
-function SummaryBox({ text }: { text: string }) {
+function saveMdFile(content: string, filename: string) {
+  const blob = new Blob([content], { type: 'text/markdown' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+function SummaryCopyButtons({ text, md, mdFilename }: { text: string; md: string; mdFilename?: string }) {
+  const [copied, setCopied] = useState<'text' | 'md' | null>(null)
+  const copy = (content: string, type: 'text' | 'md') => {
+    navigator.clipboard.writeText(content)
+    setCopied(type)
+    setTimeout(() => setCopied(null), 1500)
+  }
+  return (
+    <div className="section-copy-buttons">
+      <button className="btn-copy-sm" onClick={() => copy(text, 'text')}>
+        {copied === 'text' ? '✓' : 'Kopijuoti'}
+      </button>
+      <button className="btn-copy-sm" onClick={() => copy(md, 'md')}>
+        {copied === 'md' ? '✓' : 'MD'}
+      </button>
+      <button className="btn-copy-sm" onClick={() => saveMdFile(md, mdFilename || 'santrauka.md')} title="Atsisiųsti .md failą">
+        ⬇ .md
+      </button>
+    </div>
+  )
+}
+
+function SummaryBox({ text, title }: { text: string; title?: string }) {
   const [expanded, setExpanded] = useState(false)
   const innerRef = useRef<HTMLDivElement>(null)
   const [needsExpand, setNeedsExpand] = useState(false)
@@ -96,9 +127,19 @@ function SummaryBox({ text }: { text: string }) {
     return () => ro.disconnect()
   }, [text])
 
+  const plainText = text
+    .replace(/#{1,6}\s+/g, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/\*(.*?)\*/g, '$1')
+    .replace(/- /g, '• ')
+    .trim()
+
   return (
     <div className="summary-box">
-      <div className="summary-label">AI Santrauka</div>
+      <div className="summary-header">
+        <div className="summary-label">AI Santrauka</div>
+        <SummaryCopyButtons text={plainText} md={text} mdFilename={title ? `${title} - santrauka.md` : 'santrauka.md'} />
+      </div>
       <div
         className={`summary-content ${!expanded && needsExpand ? 'summary-collapsed' : ''}`}
         style={!expanded && needsExpand ? { maxHeight: collapsedHeight } : undefined}
@@ -686,7 +727,7 @@ export default function TranscribePage({ onTranscribed, onTitleChange }: Props) 
             )}
 
             {transcript.summary && (
-              <SummaryBox text={transcript.summary} />
+              <SummaryBox text={transcript.summary} title={transcript.title} />
             )}
 
             {!transcript.summary && !loading && (
