@@ -18,7 +18,6 @@ from models import Settings, TranscriptRecord, TranscriptSegment
 
 logger = logging.getLogger(__name__)
 
-# Connection string: env var or fallback to local SQLite-style path (for dev)
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 # Connection pool (lazy init)

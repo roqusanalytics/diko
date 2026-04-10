@@ -24,9 +24,9 @@ jobs:
         working-directory: diko/backend
         run: uv sync
 
-      - name: Run backend tests
+      - name: Run backend tests (non-DB)
         working-directory: diko/backend
-        run: uv run pytest tests/ -v
+        run: uv run pytest tests/test_captions.py tests/test_exporter.py -v
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
