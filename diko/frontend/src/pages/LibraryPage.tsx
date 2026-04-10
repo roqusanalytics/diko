@@ -273,8 +273,6 @@ export default function LibraryPage() {
   const collections = (cache.collections || []) as {id: number, name: string, count: number}[]
   const categoryCounts = (cache.categories || []) as {name: string, count: number}[]
 
-  const loadItems = () => { refreshLibrary() }
-
   const createCollection = async () => {
     if (!newCollectionName.trim()) return
     await fetch(`${API}/api/collections`, {
@@ -284,9 +282,7 @@ export default function LibraryPage() {
     })
     setNewCollectionName('')
     setShowNewCollection(false)
-    const res = await fetch(`${API}/api/collections`)
-    const data = await res.json()
-    setCollections(data.collections || [])
+    refreshLibrary()
   }
 
   // Filter + sort
@@ -376,7 +372,7 @@ export default function LibraryPage() {
   const handleDelete = async (videoId: string) => {
     try {
       await fetch(`${API}/api/transcripts/${videoId}`, { method: 'DELETE' })
-      setItems(prev => prev.filter(i => i.video_id !== videoId))
+      refreshLibrary()
       if (selectedId === videoId) {
         setSelectedId(null)
         setSelectedTranscript(null)

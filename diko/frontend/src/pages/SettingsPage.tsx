@@ -34,7 +34,7 @@ export default function SettingsPage() {
   const searchRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  const { data: cache, refreshSettings } = useDataCache()
+  const { data: cache } = useDataCache()
 
   // Load settings from cache
   useEffect(() => {

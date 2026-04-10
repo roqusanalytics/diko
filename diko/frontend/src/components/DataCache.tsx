@@ -32,8 +32,8 @@ export function DataCacheProvider({ children }: { children: React.ReactNode }) {
 
   const fetchOnce = useCallback(async (key: string, url: string, transform?: (d: any) => any) => {
     const now = Date.now()
-    if (timestamps.current[key] && now - timestamps.current[key] < STALE_MS) return
-    if (inflight.current[key]) return inflight.current[key]
+    if (timestamps.current[key] && now - timestamps.current[key] < STALE_MS) return undefined
+    if (key in inflight.current) return inflight.current[key]
 
     const p = fetch(`${API}${url}`)
       .then(r => r.json())
