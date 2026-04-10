@@ -12,6 +12,7 @@ dependencies = [
     "uvicorn>=0.42.0",
     "youtube-transcript-api>=1.2.4",
     "yt-dlp>=2026.3.17",
+    "psycopg2-binary>=2.9.10",
 ]
 
 [dependency-groups]
