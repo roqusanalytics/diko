@@ -5,6 +5,7 @@ import LibraryPage from './pages/LibraryPage'
 import SettingsPage from './pages/SettingsPage'
 import Breadcrumb from './components/Breadcrumb'
 import { MediaDownloadProvider, useMediaDownloads } from './components/MediaDownloadContext'
+import { DataCacheProvider, useDataCache } from './components/DataCache'
 import './App.css'
 
 const API = import.meta.env.VITE_API_URL || ''  // Railway URL in prod, empty (proxy) in dev
@@ -51,10 +52,11 @@ function SidebarDownloads() {
   )
 }
 
-function App() {
+function AppInner() {
   const [recentItems, setRecentItems] = useState<{video_id: string, title: string, language: string}[]>([])
   const [currentVideoTitle, setCurrentVideoTitle] = useState<string | undefined>()
   const navigate = useNavigate()
+  const { prefetch } = useDataCache()
 
   const addRecent = (item: {video_id: string, title: string, language: string}) => {
     setRecentItems(prev => {
@@ -76,10 +78,12 @@ function App() {
         <NavLink to="/" end className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
           <span className="nav-icon">+</span> Naujas
         </NavLink>
-        <NavLink to="/library" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+        <NavLink to="/library" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}
+          onMouseEnter={() => prefetch('library')}>
           <span className="nav-icon">&#9776;</span> Biblioteka
         </NavLink>
-        <NavLink to="/settings" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
+        <NavLink to="/settings" className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}
+          onMouseEnter={() => prefetch('settings')}>
           <span className="nav-icon">&#9881;</span> Nustatymai
         </NavLink>
 
@@ -115,6 +119,14 @@ function App() {
       </main>
     </div>
     </MediaDownloadProvider>
+  )
+}
+
+function App() {
+  return (
+    <DataCacheProvider>
+      <AppInner />
+    </DataCacheProvider>
   )
 }
 

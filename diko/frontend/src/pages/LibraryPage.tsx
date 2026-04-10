@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { API } from '../App'
+import { useDataCache } from '../components/DataCache'
 import DownloadModal from '../components/DownloadModal'
 import './LibraryPage.css'
 
@@ -250,7 +251,7 @@ function LibrarySummaryBox({ text, title }: { text: string; title?: string }) {
 }
 
 export default function LibraryPage() {
-  const [items, setItems] = useState<LibraryItem[]>([])
+  const { data: cache, refreshLibrary } = useDataCache()
   const [query, setQuery] = useState('')
   const [sortBy, setSortBy] = useState<SortKey>('date_desc')
   const [langFilter, setLangFilter] = useState<LangFilter>('all')
@@ -261,27 +262,18 @@ export default function LibraryPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [downloadItem, setDownloadItem] = useState<LibraryItem | null>(null)
-  const [stats, setStats] = useState<any>(null)
-  const [collections, setCollections] = useState<{id: number, name: string, count: number}[]>([])
   const [collectionFilter, setCollectionFilter] = useState<number | null>(null)
-  const [categoryCounts, setCategoryCounts] = useState<{name: string, count: number}[]>([])
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null)
   const [showNewCollection, setShowNewCollection] = useState(false)
   const [newCollectionName, setNewCollectionName] = useState('')
   const navigate = useNavigate()
 
-  useEffect(() => {
-    loadItems()
-    fetch(`${API}/api/stats`).then(r => r.json()).then(setStats)
-    fetch(`${API}/api/collections`).then(r => r.json()).then(d => setCollections(d.collections || []))
-    fetch(`${API}/api/categories`).then(r => r.json()).then(d => setCategoryCounts(d.categories || []))
-  }, [])
+  const items = (cache.library || []) as LibraryItem[]
+  const stats = cache.stats
+  const collections = (cache.collections || []) as {id: number, name: string, count: number}[]
+  const categoryCounts = (cache.categories || []) as {name: string, count: number}[]
 
-  const loadItems = () => {
-    fetch(`${API}/api/library`)
-      .then(r => r.json())
-      .then(data => setItems(data.items || []))
-  }
+  const loadItems = () => { refreshLibrary() }
 
   const createCollection = async () => {
     if (!newCollectionName.trim()) return

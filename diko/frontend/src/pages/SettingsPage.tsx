@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { API } from '../App'
+import { useDataCache } from '../components/DataCache'
 import Dropdown from '../components/Dropdown'
 import './SettingsPage.css'
 
@@ -33,19 +34,20 @@ export default function SettingsPage() {
   const searchRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
-  // Load settings + saved models
+  const { data: cache, refreshSettings } = useDataCache()
+
+  // Load settings from cache
   useEffect(() => {
-    fetch(`${API}/api/settings`)
-      .then(r => r.json())
-      .then(data => {
-        const storedKey = data.openrouter_api_key || ''
-        setHasStoredKey(storedKey === '***')
-        setApiKey(storedKey === '***' ? '' : storedKey)
-        setWhisperModel(data.whisper_model || 'small')
-        setLanguage(data.default_language || '')
-      })
+    if (cache.settings) {
+      const data = cache.settings
+      const storedKey = data.openrouter_api_key || ''
+      setHasStoredKey(storedKey === '***')
+      setApiKey(storedKey === '***' ? '' : storedKey)
+      setWhisperModel(data.whisper_model || 'small')
+      setLanguage(data.default_language || '')
+    }
     loadSavedModels()
-  }, [])
+  }, [cache.settings])
 
   const loadSavedModels = () => {
     fetch(`${API}/api/models/saved`)
