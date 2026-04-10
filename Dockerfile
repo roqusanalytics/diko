@@ -27,7 +27,8 @@ RUN pip install --no-cache-dir \
     httpx==0.28.1 \
     sse-starlette==3.3.4 \
     yt-dlp==2026.3.17 \
-    pydantic
+    pydantic \
+    psycopg2-binary==2.9.10
 
 RUN pip install --no-cache-dir faster-whisper==1.2.1
 
